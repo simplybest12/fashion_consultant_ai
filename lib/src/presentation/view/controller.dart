@@ -20,6 +20,8 @@ class ImageController extends GetxController {
     final FilePickerResult? res = await pickImage();
     if (res != null) {
       imageFile.value = File(res.files.single.path!);
+      print("Loaded Image");
+      print(imageFile.value);
       error.value = false;
     }
   }

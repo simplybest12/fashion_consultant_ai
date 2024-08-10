@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'dart:developer';
 import 'dart:io';
 
 import 'package:ai_fashion_consultant/src/presentation/view/controller.dart';
@@ -20,7 +22,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final controller = Get.put(ImageController());
-  File? imageFile;
+
   String occasion = "";
   bool error = false;
   bool isLoading = false;
@@ -29,61 +31,112 @@ class _HomeScreenState extends State<HomeScreen> {
 
   final gemini = Gemini.instance;
 
-
-  Future<String> imageAnalyzer(String text,File image) async{
+  Future<String> imageAnalyzer(String text, File image) async {
     String result = '';
-    setState(() {
-      isLoading=true;
-    });
-    await gemini
-        .textAndImage(text: text, images:[ image.readAsBytesSync()])
-        .then((value) {
+    try {
+      setState(() {
+        isLoading = true;
+      });
 
+      // Convert image to bytes
+      final imageBytes = await image.readAsBytes();
+
+      // Debugging output
+      print("Starting image analysis...");
+      print("Text for analysis: $text");
+      print("Image file path: ${image.path}");
+
+      // Make the API call
+
+      final response = await gemini.textAndImage(
+        text: text,
+        images: [imageBytes], // Ensure this format is correct
+      );
+
+      // Debugging output for response handling
+      print("Received response from Gemini API: $response");
+
+      // Check if response and its content are valid
+      if (response != null &&
+          response.content != null &&
+          response.content!.parts != null &&
+          response.content!.parts!.isNotEmpty) {
         setState(() {
-          result = value!.content!.parts![0].text!;
+          result = response.content!.parts![0].text ?? "No text found";
           isLoading = false;
         });
+        print("Analysis successful, result: $result");
+      } else {
+        throw Exception("Unexpected response structure or empty response");
+      }
+    } catch (e) {
+      setState(() {
+        isLoading = false;
+      });
 
-      return result;
-    })
-        .catchError((e) {
-          setState(() {
-            isLoading = false;
-          });
-      print("text and image error occurred: $e");
-      // Handle the error accordingly
-      return result;
-    });
+      // Improved error handling
+      if (e is GeminiException) {
+        print("GeminiException occurred: $e");
+        if (e.statusCode == 404) {
+          print("404 Error: The requested resource was not found. Please check the URL or resource identifier.");
+        } else {
+          print("API Error: ${e.message}");
+        }
+      } else {
+        print("An unexpected error occurred: $e");
+      }
+    }
+
     return result;
   }
 
-  void startAnalyzing() async{
-    if(occasion.isEmpty || imageFile == null || isLoading){
+
+
+  void startAnalyzing() async {
+
+    final File? imageFile = controller.imageFile.value ;
+    print("Start");
+    print(imageFile);
+
+
+    if (controller.occasion.isEmpty || imageFile == null || isLoading) {
       setState(() {
-        error=true;
+        error = true;
       });
       return;
     }
-    bool containPerson = await containsSingleOrPortraitPerson(imageFile!);
-    if (!containPerson) {
+
+    try {
+      bool containPerson = await containsSingleOrPortraitPerson(imageFile);
+      print("Hello");
+      print(containPerson);
+
+      if (!containPerson) {
+        setState(() {
+          error = true;
+          controller.imageFile.value = null; // Resetting imageFile to null
+        });
+        return;
+      } else {
+        setState(() => error = false);
+
+        String res = await imageAnalyzer(
+            "Analyze my outfit in this picture and tell some clothing styles and necessary adjustments that should be made to enhance my current style for a ${controller.occasion} look",
+            imageFile); // Use the local variable imageFile here
+
+        setState(() => controller.imageFile.value = null); // Clear the image after analysis
+        print("Ghanta");
+        print(res);
+
+        if (mounted) {
+          Get.to(() => ResponseScreen(response: res));
+        }
+      }
+    } catch (e) {
       setState(() {
         error = true;
-        imageFile = null;
       });
-      return;
-    } else {
-      setState(() => error = false);
-
-      String res = await imageAnalyzer(
-          "Analyze my outfit in this picture and tell some clothing styles and necessary adjustment that should be made to enhance my current style for $occasion look",
-          imageFile!);
-      setState(() => imageFile = null);
-      if (mounted) {
-        Navigator.push(
-            context,
-            MaterialPageRoute(
-                builder: (context) => ResponseScreen(response: res)));
-      }
+      print("Error during analysis: $e");
     }
   }
 
@@ -98,6 +151,8 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     return isPersonPortrait;
   }
+
+
 
 
 
@@ -204,7 +259,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       buildOccasion('Work')
                     ],
                   ),
-                  if(error)
+                  if(error) const SizedBox(height: 16,),
+                  if(!error)
                     Container(
                       color:AppColor.white,
                       padding: EdgeInsets.symmetric(horizontal: 8),
@@ -214,6 +270,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
 
                     ),
+                  if (isLoading) const SizedBox(height: 16),
                   if (isLoading)
                     Padding(
                       padding: EdgeInsets.all(8),
@@ -249,8 +306,6 @@ class ImageUplaodWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    print("dhajhdbj,kfb");
-    print(imageFile);
     return imageFile != null
         ? Image.file(
             imageFile!,

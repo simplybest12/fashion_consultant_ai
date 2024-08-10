@@ -3,6 +3,7 @@ import 'package:ai_fashion_consultant/src/utils/api_keys.dart';
 import 'package:ai_fashion_consultant/src/utils/constants.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_gemini/flutter_gemini.dart';
+import 'package:get/get_navigation/src/root/get_material_app.dart';
 
 void main() {
   Gemini.init(apiKey: ApiKeys.gemini_api_key);
@@ -16,7 +17,7 @@ class MyApp extends StatelessWidget {
   // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return GetMaterialApp(
         debugShowCheckedModeBanner: false,
         title: 'Flutter Demo',
         theme: ThemeData(
